@@ -3,258 +3,292 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Конвертер об'ємних фігур</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/SVGLoader.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/STLExporter.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
+    <title>Повноцінна 3D Модель з обертанням та експортом</title>
     <style>
-        body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; }
-        canvas { display: block; width: 100vw; height: 100vh; }
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #0b0b0b; /* Темний фон без сіток та площин */
+            font-family: Arial, sans-serif;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+        /* Стильна панель керування внизу */
+        .ui-panel {
+            position: absolute;
+            bottom: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 12px;
+            background: rgba(20, 20, 20, 0.75);
+            padding: 12px 24px;
+            border-radius: 14px;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        .ui-btn {
+            background-color: #4361ee;
+            color: #fff;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: background 0.2s, transform 0.1s;
+        }
+        .ui-btn:hover {
+            background-color: #3a0ca3;
+            transform: translateY(-2px);
+        }
+        .instructions {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #ccc;
+            background: rgba(20, 20, 20, 0.7);
+            padding: 12px 18px;
+            border-radius: 10px;
+            pointer-events: none;
+            font-size: 13px;
+            line-height: 1.6;
+            backdrop-filter: blur(5px);
+        }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-100">
+<body>
 
-    <div class="absolute top-4 left-4 z-10 bg-slate-800/90 backdrop-blur-md p-5 rounded-2xl shadow-2xl border border-slate-700 max-w-sm w-full">
-        <h1 class="text-xl font-bold mb-1 text-indigo-400">3D Об'ємний Конвертер</h1>
-        <p class="text-xs text-slate-400 mb-4">Формати: <span class="font-semibold text-slate-200">.PNG, .JPG, .SVG</span></p>
-        
-        <label class="flex flex-col items-center justify-center border-2 border-dashed border-indigo-500/50 hover:border-indigo-400 rounded-xl p-3 cursor-pointer bg-slate-900/50 transition-all hover:bg-slate-900 mb-4">
-            <svg class="w-7 h-7 text-indigo-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-            </svg>
-            <span class="text-xs font-medium text-slate-200">Оберіть або перетягніть файл</span>
-            <input type="file" id="fileInput" accept=".png,.jpg,.jpeg,.svg" class="hidden">
-        </label>
-
-        <div class="mb-4">
-            <div class="flex justify-between text-xs mb-1">
-                <span class="text-slate-300">Товщина 3D моделі:</span>
-                <span id="depthVal" class="text-indigo-400 font-bold">25</span>
-            </div>
-            <input type="range" id="extrusionDepth" min="5" max="60" value="25" class="w-full accent-indigo-500 cursor-pointer">
-        </div>
-
-        <div class="grid grid-cols-2 gap-2 mb-3">
-            <button id="exportSTL" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-2.5 px-3 rounded-xl transition-all shadow-lg shadow-indigo-600/30 disabled:opacity-40 disabled:cursor-not-allowed" disabled>
-                📥 Скачати .STL
-            </button>
-            <button id="exportGLB" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold py-2.5 px-3 rounded-xl transition-all shadow-lg shadow-emerald-600/30 disabled:opacity-40 disabled:cursor-not-allowed" disabled>
-                📥 Скачати .GLB
-            </button>
-        </div>
-
-        <div id="statusMessage" class="text-xs text-slate-400 text-center min-h-[20px]">
-            Очікування файлу...
-        </div>
+    <div class="instructions">
+        🖱️ <b>Обертання:</b> затисніть ліву кнопку миші та тягніть<br>
+        wheel <b>Масштабування:</b> коліщатко миші
     </div>
 
     <div id="canvas-container"></div>
 
+    <div class="ui-panel">
+        <button class="ui-btn" id="export-stl">Завантажити STL</button>
+        <button class="ui-btn" id="export-glb">Завантажити GLB</button>
+    </div>
+
+    <!-- Підключення бібліотеки Three.js та модулів експорту через CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/STLExporter.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/GLTFExporter.js"></script>
+
     <script>
-        let scene, camera, renderer, controls;
-        let currentModel = null;
-        let lastFileContent = null;
-        let lastFileType = null;
+        // --- 1. ІНІЦІАЛІЗАЦІЯ СЦЕНИ, КАМЕРИ ТА РЕНДЕРЕРА ---
+        const container = document.getElementById('canvas-container');
+        
+        const scene = new THREE.Scene();
+        scene.background = null; // Повністю прозорий/темний фон без жодних площин
 
-        window.onload = function() {
-            initThreeJS();
-            setupUI();
-            window.addEventListener('resize', onWindowResize, false);
-        };
+        // Створення камери з перспективою
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        
+        // Рендерер WebGL із ввімкненим згладжуванням (antialias)
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.shadowMap.enabled = true;
+        container.appendChild(renderer.domElement);
 
-        function initThreeJS() {
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x0f172a);
+        // --- 2. ОСВІТЛЕННЯ (для досягнення м'якого пластилінового об'єму) ---
+        // Загальне розсіяне світло
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
 
-            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set(0, -200, 200);
+        // Головне спрямоване світло для створення глибоких тіней і рельєфу
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        dirLight.position.set(10, 20, 15);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
 
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-            document.getElementById('canvas-container').appendChild(renderer.domElement);
+        // Додаткове підсвічування знизу (заповнююче світло)
+        const fillLight = new THREE.DirectionalLight(0x8ecae6, 0.4);
+        fillLight.position.set(-10, -10, -10);
+        scene.add(fillLight);
 
-            controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
+        // --- 3. СТВОРЕННЯ ПОВНОЦІННОЇ ОБ'ЄМНОЇ 3D-МОДЕЛІ ---
+        const modelGroup = new THREE.Group();
+        scene.add(modelGroup);
 
-            scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-            const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
-            dirLight.position.set(100, -200, 300);
-            scene.add(dirLight);
+        // Матеріал у стилі матового пластиліну
+        const clayMaterial = new THREE.MeshStandardMaterial({
+            color: 0x52b788,
+            roughness: 0.4,
+            metalness: 0.1
+        });
 
-            const grid = new THREE.GridHelper(400, 40, 0x4f46e5, 0x334155);
-            grid.position.z = -25;
-            grid.rotation.x = Math.PI / 2;
-            scene.add(grid);
+        const accentMaterial = new THREE.MeshStandardMaterial({
+            color: 0x74c69d,
+            roughness: 0.5,
+            metalness: 0.1
+        });
 
-            animate();
+        const darkCoreMaterial = new THREE.MeshStandardMaterial({
+            color: 0x1b4332,
+            roughness: 0.3
+        });
+
+        // Основне повноцінне об'ємне тіло (м'яка випукла капсула з усіх боків)
+        const bodyGeo = new THREE.SphereGeometry(1.2, 32, 32);
+        bodyGeo.scale(1.4, 0.9, 0.9);
+        const body = new THREE.Mesh(bodyGeo, clayMaterial);
+        modelGroup.add(body);
+
+        // Внутрішній шар (об'ємне ядро)
+        const innerGeo = new THREE.SphereGeometry(1.0, 32, 32);
+        innerGeo.scale(1.2, 0.75, 0.75);
+        const innerBody = new THREE.Mesh(innerGeo, accentMaterial);
+        innerBody.position.set(0, 0.05, 0.05);
+        modelGroup.add(innerBody);
+
+        // Додавання об'ємних випуклих органел (пухирців) усередині та з боків
+        const organellePositions = [
+            { pos: [-0.4, 0.3, 0.5], scale: 0.35, mat: clayMaterial },
+            { pos: [0.3, 0.4, 0.4], scale: 0.25, mat: accentMaterial },
+            { pos: [0.5, -0.1, 0.5], scale: 0.3, mat: clayMaterial },
+            { pos: [-0.1, -0.4, 0.6], scale: 0.45, mat: darkCoreMaterial }
+        ];
+
+        organellePositions.forEach(item => {
+            const orgGeo = new THREE.SphereGeometry(item.scale, 24, 24);
+            const org = new THREE.Mesh(orgGeo, item.mat);
+            org.position.set(...item.pos);
+            modelGroup.add(org);
+        });
+
+        // Додавання об'ємних випуклих ворсинок / джгутиків по периметру
+        const spikeCount = 18;
+        for (let i = 0; i < spikeCount; i++) {
+            const angle = (i / spikeCount) * Math.PI * 2;
+            const radius = 1.35;
+            const x = Math.cos(angle) * radius;
+            const y = Math.sin(angle) * radius * 0.7;
+
+            // Використовуємо циліндри з заокругленими кінцями для ідеального 3D об'єму
+            const spikeGeo = new THREE.CylinderGeometry(0.12, 0.18, 0.5, 16);
+            const spike = new THREE.Mesh(spikeGeo, clayMaterial);
+            
+            // Позиціонування та орієнтація назовні від центру
+            spike.position.set(x, y, 0);
+            spike.rotation.z = angle - Math.PI / 2;
+            modelGroup.add(spike);
         }
 
+        // --- ВАЖЛИВО: Поворот моделі ДОГОРИ НОГАМИ згідно із запитом ---
+        modelGroup.rotation.x = Math.PI; // Перевертає модель на 180 градусів вертикально
+
+        // --- 4. ЛОГІКА 3D-ПРОЕКЦІЇ ТА ОБЕРТАННЯ КАМЕРИ МИШЕЮ ---
+        // Використовуємо сферичні координати для повного контролю кутів огляду
+        let isDragging = false;
+        let previousMousePosition = { x: 0, y: 0 };
+
+        let cameraRadius = 5.0;         // Відстань камери від центру моделі (зум)
+        let cameraTheta = Math.PI / 4;  // Горизонтальний кут обертання
+        let cameraPhi = Math.PI / 3;    // Вертикальний кут обертання
+
+        function updateCameraPosition() {
+            // Обмежуємо кут Phi, щоб камера не переверталася догори дном
+            cameraPhi = Math.max(0.1, Math.min(Math.PI - 0.1, cameraPhi));
+
+            // Математична проекція сферичних координат у декартові координати (X, Y, Z)
+            camera.position.x = cameraRadius * Math.sin(cameraPhi) * Math.sin(cameraTheta);
+            camera.position.y = cameraRadius * Math.cos(cameraPhi);
+            camera.position.z = cameraRadius * Math.sin(cameraPhi) * Math.cos(cameraTheta);
+
+            // Направляємо фокус камери точно в центр координатної сітки (0, 0, 0)
+            camera.lookAt(0, 0, 0);
+        }
+
+        // Початкове позиціювання камери
+        updateCameraPosition();
+
+        // Обробка подій перетягування мишею (Mouse Drag)
+        window.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            previousMousePosition = { x: e.clientX, y: e.clientY };
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+
+            const deltaX = e.clientX - previousMousePosition.x;
+            const deltaY = e.clientY - previousMousePosition.y;
+
+            // Змінюємо кути відповідно до зміщення курсора миші
+            cameraTheta -= deltaX * 0.005;
+            cameraPhi -= deltaY * 0.005;
+
+            updateCameraPosition();
+
+            previousMousePosition = { x: e.clientX, y: e.clientY };
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        // Обробка коліщатка миші для наближення та віддалення (Зум)
+        window.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            cameraRadius += e.deltaY * 0.005;
+            // Обмежуємо мінімальну та максимальну відстань зуму
+            cameraRadius = Math.max(2.0, Math.min(12.0, cameraRadius));
+            updateCameraPosition();
+        }, { passive: false });
+
+        // --- 5. АНІМАЦІЙНИЙ ЦИКЛ ---
         function animate() {
             requestAnimationFrame(animate);
-            controls.update();
             renderer.render(scene, camera);
         }
+        animate();
 
-        function onWindowResize() {
+        // Адаптивність при зміні розмірів вікна браузера
+        window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-        }
+        });
 
-        function setupUI() {
-            const fileInput = document.getElementById('fileInput');
-            const depthSlider = document.getElementById('extrusionDepth');
-            const depthVal = document.getElementById('depthVal');
-
-            depthSlider.addEventListener('input', function() {
-                depthVal.textContent = this.value;
-                if (lastFileContent) {
-                    processFile(lastFileContent, lastFileType, parseFloat(this.value));
-                }
-            });
-
-            fileInput.addEventListener('change', function(event) {
-                const file = event.target.files[0];
-                if (!file) return;
-
-                const fileName = file.name.toLowerCase();
-                lastFileType = fileName.endsWith('.svg') ? 'svg' : 'image';
-
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    lastFileContent = e.target.result;
-                    processFile(lastFileContent, lastFileType, parseFloat(depthSlider.value));
-                    
-                    const status = document.getElementById('statusMessage');
-                    status.textContent = `Готово: ${file.name}`;
-                    status.className = "text-xs text-emerald-400 text-center min-h-[20px]";
-                    
-                    document.getElementById('exportSTL').removeAttribute('disabled');
-                    document.getElementById('exportGLB').removeAttribute('disabled');
-                };
-
-                if (lastFileType === 'svg') {
-                    reader.readAsText(file);
-                } else {
-                    reader.readAsDataURL(file);
-                }
-            });
-
-            document.getElementById('exportSTL').addEventListener('click', exportToSTL);
-            document.getElementById('exportGLB').addEventListener('click', exportToGLB);
-        }
-
-        function processFile(content, type, depth) {
-            if (currentModel) scene.remove(currentModel);
-
-            if (type === 'svg') {
-                const loader = new THREE.SVGLoader();
-                const svgData = loader.parse(content);
-                const group = new THREE.Group();
-
-                svgData.paths.forEach((path) => {
-                    path.toShapes(true).forEach((shape) => {
-                        const geom = new THREE.ExtrudeGeometry(shape, { depth: depth, bevelEnabled: true, bevelSize: 1, bevelThickness: 1 });
-                        const mat = new THREE.MeshStandardMaterial({ color: path.colorStyle || 0x6366f1, side: THREE.DoubleSide });
-                        group.add(new THREE.Mesh(geom, mat));
-                    });
-                });
-                group.scale.y = -1;
-                finishModel(group);
-            } else {
-                const img = new Image();
-                img.src = content;
-                img.onload = function() {
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    
-                    const width = 80;
-                    const height = Math.round(80 * (img.height / img.width));
-                    canvas.width = width;
-                    canvas.height = height;
-                    
-                    ctx.drawImage(img, 0, 0, width, height);
-                    const imgData = ctx.getImageData(0, 0, width, height).data;
-
-                    const group = new THREE.Group();
-                    const texture = new THREE.TextureLoader().load(content);
-                    const material = new THREE.MeshStandardMaterial({
-                        map: texture,
-                        side: THREE.DoubleSide,
-                        roughness: 0.3
-                    });
-
-                    // Створюємо повноцінні об'ємні колонки (стовпчики) лише для пікселів фігури без платформи під ними
-                    const scaleX = 180 / width;
-                    const scaleY = (180 * (height / width)) / height;
-
-                    for (let y = 0; y < height; y++) {
-                        for (let x = 0; x < width; x++) {
-                            const i = (y * width + x) * 4;
-                            const r = imgData[i];
-                            const g = imgData[i + 1];
-                            const b = imgData[i + 2];
-                            const a = imgData[i + 3];
-
-                            // Пропускаємо повністю прозорий або білий/темний фон
-                            if (a < 30) continue;
-                            const brightness = (r * 0.299 + g * 0.587 + b * 0.114) / 255;
-                            const pixelDepth = Math.max(brightness * depth, 2);
-
-                            const geom = new THREE.BoxGeometry(scaleX * 1.05, scaleY * 1.05, pixelDepth);
-                            const mesh = new THREE.Mesh(geom, material);
-                            
-                            mesh.position.set(
-                                (x - width / 2) * scaleX + scaleX / 2,
-                                (y - height / 2) * scaleY + scaleY / 2,
-                                pixelDepth / 2
-                            );
-                            group.add(mesh);
-                        }
-                    }
-
-                    finishModel(group);
-                };
-            }
-        }
-
-        function finishModel(obj) {
-            currentModel = obj;
-            const box = new THREE.Box3().setFromObject(currentModel);
-            currentModel.position.sub(box.getCenter(new THREE.Vector3()));
-            scene.add(currentModel);
-
-            const size = box.getSize(new THREE.Vector3());
-            let dist = Math.max(size.x, size.y, size.z) * 2.5;
-            camera.position.set(0, -dist * 0.8, dist * 0.6);
-            controls.target.set(0, 0, 0);
-            controls.update();
-        }
-
-        function exportToSTL() {
-            if (!currentModel) return;
-            const result = new THREE.STLExporter().parse(currentModel, { binary: true });
-            downloadBlob(new Blob([result], { type: 'application/octet-stream' }), 'true-3d-model.stl');
-        }
-
-        function exportToGLB() {
-            if (!currentModel) return;
-            new THREE.GLTFExporter().parse(currentModel, function (gltf) {
-                downloadBlob(new Blob([gltf], { type: 'model/gltf-binary' }), 'true-3d-model.glb');
-            }, { binary: true });
-        }
-
-        function downloadBlob(blob, filename) {
+        // --- 6. ФУНКЦІЇ ЕКСПОРТУ (STL та GLB) ---
+        function downloadFile(blob, filename) {
             const link = document.createElement('a');
             link.href = URL.createObjectURL(blob);
             link.download = filename;
             link.click();
             URL.revokeObjectURL(link.href);
         }
+
+        // Експорт у формат STL (для 3D-друку)
+        document.getElementById('export-stl').addEventListener('click', () => {
+            const exporter = new THREE.STLExporter();
+            const result = exporter.parse(modelGroup, { binary: true });
+            const blob = new Blob([result], { type: 'application/octet-stream' });
+            downloadFile(blob, 'model_3d.stl');
+        });
+
+        // Експорт у формат GLB (повноцінний 3D-формат)
+        document.getElementById('export-glb').addEventListener('click', () => {
+            const exporter = new THREE.GLTFExporter();
+            exporter.parse(
+                modelGroup,
+                (gltf) => {
+                    const blob = new Blob([gltf], { type: 'application/octet-stream' });
+                    downloadFile(blob, 'model_3d.glb');
+                },
+                (error) => {
+                    console.error('Помилка експорту GLB:', error);
+                },
+                { binary: true }
+            );
+        });
     </script>
 </body>
 </html>
